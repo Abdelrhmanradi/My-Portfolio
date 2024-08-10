@@ -20,6 +20,7 @@ Month_num  is null or
 Sales  is null or
 City is null or
 Hour_num is null ;
+
 -- find Duplicates --
 select count(*) as count, Order_ID 
 from sales 
@@ -104,17 +105,64 @@ from sales
 group by 1 
 order by 1;
 
--- prodcut values overview --
+
+-- calculate the quarterly growth --
+
+WITH quarterly_sales AS (
+    SELECT 
+        CASE 
+            WHEN month_num BETWEEN 1 AND 3 THEN 'Q1'
+            WHEN month_num BETWEEN 4 AND 6 THEN 'Q2'
+            WHEN month_num BETWEEN 7 AND 9 THEN 'Q3'
+            ELSE 'Q4'
+        END AS quarter,
+        YEAR(order_date) AS year,
+        SUM(sales) AS total_sales
+    FROM sales
+    GROUP BY 
+        CASE 
+            WHEN month_num BETWEEN 1 AND 3 THEN 'Q1'
+            WHEN month_num BETWEEN 4 AND 6 THEN 'Q2'
+            WHEN month_num BETWEEN 7 AND 9 THEN 'Q3'
+            ELSE 'Q4'
+        END,
+        YEAR(order_date)
+),
+quarterly_growth AS (
+    SELECT 
+        year,
+        quarter,
+        total_sales,
+        LAG(total_sales) OVER (ORDER BY year, quarter) AS previous_sales,
+        (total_sales - LAG(total_sales) OVER (ORDER BY year, quarter)) / LAG(total_sales) OVER (ORDER BY year, quarter) * 100 AS growth_percentage
+    FROM 
+        quarterly_sales
+)
+SELECT 
+    year,
+    quarter,
+    total_sales,
+    previous_sales,
+    COALESCE(growth_percentage, 0) AS growth_percentage
+FROM 
+    quarterly_growth
+ORDER BY 
+    year, quarter;
+
+-- prodcut performance overview --
 
 select round(avg(Price_Each),0)  AOV  ,max(Price_Each) MOV , min(Price_Each) MinOV 
 from sales ;  
 
+-- Above average price products performance --
 select Product Above_average_price_products ,  Price_Each,sum(Quantity_Ordered)  as Total_qty_ordered
 from sales 
 where Price_Each > (select avg(Price_Each) from sales) 
 and   Price_Each <= (select max(Price_Each)from sales)
 group by 1
 order by 2  ;
+
+-- Below average price products performance --
 
 select Product  Below_price_Avg_product,  Price_Each ,sum(Quantity_Ordered)  as Total_qty_ordered
 from sales 
